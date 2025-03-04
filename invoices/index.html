@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        input, textarea { padding: 10px; width: 250px; margin: 10px; }
+        button { padding: 10px 20px; cursor: pointer; margin: 5px; }
+        img { max-width: 150px; margin-top: 10px; }
+        table { width: 100%; margin: 10px auto; border-collapse: collapse; }
+        th, td { padding: 10px; border: 1px solid black; text-align: center; }
+    </style>
+</head>
+<body>
+    <h2>Invoice Generator</h2>
+
+    <label>Business Name:</label>
+    <input type="text" id="businessName" placeholder="Your Business Name"><br>
+
+    <label>Business Address:</label>
+    <textarea id="businessAddress" placeholder="Street, City, ZIP"></textarea><br>
+
+    <label>Business Contact:</label>
+    <input type="text" id="businessContact" placeholder="Email or Phone"><br>
+
+    <label>Upload Logo:</label>
+    <input type="file" id="logoUpload" accept="image/*"><br>
+    <img id="logoPreview" style="display: none;"><br>
+
+    <h3>Invoice Items</h3>
+    <table id="invoiceTable">
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Quantity</th>
+                <th>Price ($)</th>
+                <th>Total ($)</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <button onclick="addItem()">+ Add Item</button>
+
+    <h3>Invoice Summary</h3>
+    <p>Subtotal: $<span id="subtotal">0.00</span></p>
+    <p>Tax (10%): $<span id="tax">0.00</span></p>
+    <p><strong>Total: $<span id="total">0.00</span></strong></p>
+
+    <button onclick="generateInvoice()">Download PDF</button>
+    <button onclick="printInvoice()">Print Invoice</button>
+
+    <script>
+        let logoDataURL = "";
+
+        // Handle logo upload
+        document.getElementById("logoUpload").addEventListener("change", function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    logoDataURL = e.target.result;
+                    document.getElementById("logoPreview").src = logoDataURL;
+                    document.getElementById("logoPreview").style.display = "block";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function addItem() {
+            let table = document.getElementById("invoiceTable").getElementsByTagName("tbody")[0];
+            let row = table.insertRow();
+
+            row.innerHTML = `
+                <td><input type="text" class="desc" placeholder="Description"></td>
+                <td><input type="number" class="qty" value="1" min="1" oninput="updateTotals()"></td>
+                <td><input type="number" class="price" value="0.00" min="0" step="0.01" oninput="updateTotals()"></td>
+                <td class="itemTotal">0.00</td>
+                <td><button onclick="removeItem(this)">❌</button></td>
+            `;
+        }
+
+        function removeItem(btn) {
+            let row = btn.parentElement.parentElement;
+            row.remove();
+            updateTotals();
+        }
+
+        function updateTotals() {
+            let subtotal = 0;
+            let rows = document.querySelectorAll("#invoiceTable tbody tr");
+
+            rows.forEach(row => {
+                let qty = row.querySelector(".qty").value;
+                let price = row.querySelector(".price").value;
+                let total = qty * price;
+                row.querySelector(".itemTotal").textContent = total.toFixed(2);
+                subtotal += total;
+            });
+
+            let tax = subtotal * 0.10;
+            let total = subtotal + tax;
+
+            document.getElementById("subtotal").textContent = subtotal.toFixed(2);
+            document.getElementById("tax").textContent = tax.toFixed(2);
+            document.getElementById("total").textContent = total.toFixed(2);
+        }
+
+        function generateInvoice() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            let businessName = document.getElementById("businessName").value || "Your Business Name";
+            let businessAddress = document.getElementById("businessAddress").value || "Business Address";
+            let businessContact = document.getElementById("businessContact").value || "Contact Info";
+            let now = new Date();
+            let date = now.toLocaleDateString();
+            let time = now.toLocaleTimeString();
+
+            if (logoDataURL) {
+                doc.addImage(logoDataURL, "PNG", 150, 10, 40, 40);
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.text("INVOICE", 90, 20);
+            doc.setFont("helvetica", "normal");
+
+            doc.text(`Date: ${date}`, 20, 40);
+            doc.text(`Time: ${time}`, 20, 50);
+            doc.text(`Business: ${businessName}`, 20, 60);
+            doc.text(`Address: ${businessAddress}`, 20, 70);
+            doc.text(`Contact: ${businessContact}`, 20, 80);
+
+            let y = 100;
+            doc.text("Description  Qty  Price ($)  Total ($)", 20, y);
+            y += 10;
+
+            document.querySelectorAll("#invoiceTable tbody tr").forEach(row => {
+                let desc = row.querySelector(".desc").value || "N/A";
+                let qty = row.querySelector(".qty").value;
+                let price = row.querySelector(".price").value;
+                let total = (qty * price).toFixed(2);
+                doc.text(`${desc}   ${qty}   $${price}   $${total}`, 20, y);
+                y += 10;
+            });
+
+            let subtotal = document.getElementById("subtotal").textContent;
+            let tax = document.getElementById("tax").textContent;
+            let total = document.getElementById("total").textContent;
+
+            doc.text(`Subtotal: $${subtotal}`, 20, y + 10);
+            doc.text(`Tax (10%): $${tax}`, 20, y + 20);
+            doc.text(`Total: $${total}`, 20, y + 30);
+
+            doc.save(`Invoice_${date}.pdf`);
+        }
+    </script>
+</body>
+</html>
